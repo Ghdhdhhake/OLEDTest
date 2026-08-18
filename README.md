@@ -161,7 +161,3 @@ OLED initialization uses `0xA1` for segment remapping and `0xC8` for reversed CO
 ### The Animation Flickers or Runs at the Wrong Speed
 
 Every frame refreshes the complete 1 KB framebuffer over software I²C. Adjust `Delay(10)` to change the inter-frame delay. For a higher refresh rate, use hardware I²C, increase the bus speed, or refresh only the regions that changed.
-
-## Further Reading
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for more detailed module relationships, peripheral resource diagrams, and per-frame data flow.
