@@ -13,3 +13,20 @@
 # eide template
 *.ept
 *.eide-template
+# Keil build outputs
+/Objects/
+/Listings/
+
+# Keil per-user settings
+*.uvguix.*
+*.uvgui.*
+*.bak
+JLinkLog.txt
+
+# EIDE/CMSIS local packages and caches
+/.pack/
+/.cmsis/
+
+# OS temporary files
+.DS_Store
+Thumbs.db
