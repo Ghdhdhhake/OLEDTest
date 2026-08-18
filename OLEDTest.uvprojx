@@ -666,26 +666,6 @@
               <FilePath>.\my_lib\delay.c</FilePath>
             </File>
             <File>
-              <FileName>usart.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\my_lib\usart.h</FilePath>
-            </File>
-            <File>
-              <FileName>usart.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\my_lib\usart.c</FilePath>
-            </File>
-            <File>
-              <FileName>i2c.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\my_lib\i2c.h</FilePath>
-            </File>
-            <File>
-              <FileName>i2c.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\my_lib\i2c.c</FilePath>
-            </File>
-            <File>
               <FileName>si2c.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\my_lib\si2c.h</FilePath>
