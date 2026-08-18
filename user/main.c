@@ -1,7 +1,6 @@
 #include "stm32f10x.h"
 #include "si2c.h"
 #include "oled.h"
-#include "hyjk16.h"
 #include "delay.h"
 
 SI2C_TypeDef si2c;
