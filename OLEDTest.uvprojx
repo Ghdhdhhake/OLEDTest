@@ -695,6 +695,16 @@
               <FileType>5</FileType>
               <FilePath>.\my_lib\oled_default_font.h</FilePath>
             </File>
+            <File>
+              <FileName>cat_frames.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\my_lib\cat_frames.c</FilePath>
+            </File>
+            <File>
+              <FileName>cat_frames.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\my_lib\cat_frames.h</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>

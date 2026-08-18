@@ -1,167 +1,167 @@
 # OLEDTest
 
-这是一个基于 **STM32F103C8** 的裸机 OLED 显示示例工程。程序通过 GPIO 模拟 I²C 时序驱动一块 **SSD1306 128×64 OLED**，将 30 帧、每帧 64×64 像素的猫咪位图循环刷新到屏幕中央，形成动画效果。
+OLEDTest is a bare-metal OLED demonstration project based on the **STM32F103C8**. It drives an **SSD1306 128×64 OLED** through a GPIO-based software I²C bus and repeatedly displays 30 monochrome 64×64 cat frames in the center of the screen to create an animation.
 
-工程使用 STM32F10x 标准外设库开发，可直接使用 Keil MDK 打开 `OLEDTest.uvprojx`。
+The project uses the STM32F10x Standard Peripheral Library and can be opened directly in Keil MDK with `OLEDTest.uvprojx`.
 
-## 功能概览
+## Features
 
-- 驱动 SSD1306 128×64 单色 OLED；
-- 使用 PB6、PB7 模拟 I²C，不占用 STM32 的硬件 I²C 外设；
-- 使用 1 KB 显存缓冲区完成点、线、矩形、圆、文字和位图等绘制；
-- 循环播放 30 帧 64×64 猫咪动画；
-- 使用 SysTick 提供毫秒计时和帧间延时；
-- OLED 驱动通过回调函数接入底层总线，后续可替换为硬件 I²C。
+- Drives an SSD1306 128×64 monochrome OLED.
+- Implements software I²C on PB6 and PB7 without using the STM32 hardware I²C peripheral.
+- Uses a 1 KB framebuffer for drawing pixels, lines, rectangles, circles, text, and bitmaps.
+- Repeatedly plays a 30-frame 64×64 cat animation.
+- Uses SysTick for millisecond timing and inter-frame delays.
+- Connects the OLED driver to the bus through a callback, allowing the software I²C implementation to be replaced later.
 
-## 硬件环境与接线
+## Hardware and Wiring
 
-| 模块 | OLED 引脚 | STM32F103C8 引脚 | 说明 |
+| Function | OLED Pin | STM32F103C8 Pin | Description |
 | --- | --- | --- | --- |
-| 电源 | VCC | 3.3 V | 请以所用 OLED 模块的供电要求为准 |
-| 地 | GND | GND | OLED 与 STM32 必须共地 |
-| I²C 时钟 | SCL | PB6 | GPIO 开漏输出 |
-| I²C 数据 | SDA | PB7 | GPIO 开漏输出，可读取 ACK |
+| Power | VCC | 3.3 V | Follow the supply requirements of the specific OLED module |
+| Ground | GND | GND | The OLED and STM32 must share a common ground |
+| I²C clock | SCL | PB6 | GPIO open-drain output |
+| I²C data | SDA | PB7 | GPIO open-drain output with ACK input capability |
 
-PB6 和 PB7 被配置为 2 MHz 开漏输出。I²C 总线需要上拉电阻；多数 OLED 模块已自带上拉，如果裸屏或模块没有上拉，需在 SCL、SDA 上外接上拉电阻。
+PB6 and PB7 are configured as 2 MHz open-drain outputs. I²C requires pull-up resistors. Many OLED modules already include them; otherwise, add external pull-ups to SCL and SDA.
 
-屏幕地址在 `my_lib/oled.h` 中定义为 `0x78`。这是包含读写位的 8 位写地址，对应常见的 7 位 I²C 地址 `0x3C`。如果模块地址为 `0x3D`，需按本驱动的地址格式改为 `0x7A`。
+The display address is defined as `0x78` in `my_lib/oled.h`. This is the 8-bit write address including the R/W bit and corresponds to the common 7-bit I²C address `0x3C`. If the module uses the 7-bit address `0x3D`, change the value to `0x7A` to match this driver's address format.
 
-## 使用到的外设和片上资源
+## Peripherals and On-Chip Resources
 
-| 外设/资源 | 用途 | 配置 |
+| Peripheral/Resource | Purpose | Configuration |
 | --- | --- | --- |
-| GPIOB | 模拟 I²C 总线 | PB6=SCL，PB7=SDA，开漏输出 |
-| RCC | 系统和 GPIO 时钟 | 使能 GPIOB；系统代码配置为 72 MHz |
-| SysTick | 毫秒计时 | 每 1 ms 进入一次中断并累加 `ulTicks` |
-| Flash | 保存程序和动画帧 | 30 × 512 B 位图数据约占 15 KB |
-| SRAM | OLED 显存及运行数据 | OLED 初始化时动态分配 1025 B，其中 1024 B 为显示缓冲区 |
+| GPIOB | Software I²C bus | PB6=SCL, PB7=SDA, open-drain output |
+| RCC | System and GPIO clocks | Enables GPIOB; system clock configured for 72 MHz |
+| SysTick | Millisecond time base | Interrupts every 1 ms and increments `ulTicks` |
+| Flash | Program and animation storage | 30 × 512-byte frames occupy about 15 KB |
+| SRAM | OLED framebuffer and runtime data | OLED initialization allocates 1,025 bytes, including a 1,024-byte framebuffer |
 
-仓库中还包含 `my_lib/i2c.c` 和 `my_lib/usart.c`，分别提供硬件 I²C 和 USART 的基础收发接口，但当前 `main.c` 没有初始化或使用它们。标准外设库中的其他驱动文件也被加入了 Keil 工程，并不代表对应外设正在运行。
+The application keeps only the software I²C driver that it actually uses. The optional `my_lib/i2c.c/.h` and `my_lib/usart.c/.h` modules have been removed. The Standard Peripheral Library directory still contains ST's low-level I²C, USART, and other peripheral modules; their presence does not mean those peripherals are enabled by the application.
 
-## 工作原理
+## How It Works
 
-### 1. 系统启动与计时
+### 1. Startup and Timing
 
-复位后，启动文件先调用 `SystemInit()` 配置系统时钟，然后进入 `main()`。当前目标使用 STM32F103C8，系统时钟代码按外部 8 MHz 晶振和 PLL 配置为 72 MHz。
+After reset, the startup code calls `SystemInit()` to configure the system clock and then transfers control to `main()`. For the STM32F103C8 target, the clock configuration uses an external 8 MHz crystal and the PLL to produce a 72 MHz system clock.
 
-第一次调用 `Delay()` 时，`Delay_Init()` 根据 HCLK 配置 SysTick，使其每 1 ms 触发一次中断。`SysTick_Handler()` 将全局变量 `ulTicks` 加一，`Delay(ms)` 通过等待计数达到目标值实现毫秒级阻塞延时。
+The first call to `Delay()` invokes `Delay_Init()`, which configures SysTick from HCLK to generate one interrupt every millisecond. `SysTick_Handler()` increments the global `ulTicks` counter, while `Delay(ms)` implements a blocking millisecond delay by waiting for the counter to reach the target value.
 
-### 2. 软件 I²C
+### 2. Software I²C
 
-`My_SoftwareI2C_Init()` 将 PB6、PB7 交给 `SI2C_TypeDef`，随后 `My_SI2C_Init()` 完成 GPIO 时钟和开漏输出配置。
+`My_SoftwareI2C_Init()` assigns PB6 and PB7 to an `SI2C_TypeDef` instance. `My_SI2C_Init()` then enables the GPIO clocks and configures both pins as open-drain outputs.
 
-发送一次数据时，`My_SI2C_SendBytes()` 按 I²C 协议依次产生：
+For each transfer, `My_SI2C_SendBytes()` generates the following I²C sequence:
 
-1. 起始条件；
-2. 从机地址和写方向位；
-3. 每个数据字节及对应的 ACK 检查；
-4. 停止条件。
+1. Start condition.
+2. Slave address and write bit.
+3. Data bytes with an ACK check after each byte.
+4. Stop condition.
 
-OLED 驱动并不直接依赖软件 I²C，而是通过 `OLED_InitTypeDef.i2c_write_cb` 调用 `main.c` 中注册的 `i2c_write_bytes()`。因此，若以后改用硬件 I²C，只需初始化硬件 I²C并替换该回调函数，无需改动上层绘图代码。
+The OLED driver does not depend directly on the software I²C implementation. Instead, it calls the `i2c_write_bytes()` function registered through `OLED_InitTypeDef.i2c_write_cb`. A future hardware I²C implementation can therefore replace the callback without changing the drawing layer.
 
-### 3. OLED 显存与刷新
+### 3. OLED Framebuffer and Refresh
 
-SSD1306 屏幕共有 128×64 个像素，驱动按 8 页组织显存，每页高 8 像素：
-
-```text
-128 列 × 8 页 = 1024 字节
-显存下标 = x + (y / 8) × 128
-像素位   = y % 8
-```
-
-绘图函数先修改 STM32 RAM 中的显存，不会立即操作总线。调用 `OLED_SendBuffer()` 后，驱动将 SSD1306 设置为水平寻址模式，指定列范围 0～127、页范围 0～7，再把 1024 字节显存整体发送到屏幕。
-
-发送命令时控制字节为 `0x00`，发送显示数据时控制字节为 `0x40`。OLED 初始化过程还会设置扫描方向、对比度、电荷泵和正常显示模式等参数。
-
-### 4. 动画播放流程
-
-`main.c` 中的 `cat[][512]` 保存了 30 帧位图。一帧 64×64 单色图需要 `64 × 64 / 8 = 512` 字节。主循环的处理流程如下：
+The SSD1306 contains 128×64 pixels. The driver organizes the framebuffer into eight pages, with each page representing eight vertical pixels:
 
 ```text
-清空内存显存
-    ↓
-设置光标到 (32, 0)，使 64 像素宽位图水平居中
-    ↓
-绘制一帧 64×64 位图到显存
-    ↓
-将完整的 1024 B 显存发送到 OLED
-    ↓
-延时 10 ms，继续下一帧
-    ↓
-30 帧播放完成后从头循环
+128 columns × 8 pages = 1,024 bytes
+Framebuffer index = x + (y / 8) × 128
+Pixel bit         = y % 8
 ```
 
-实际帧率还受软件 I²C 传输耗时影响，因此不会严格等于 `1000 / 10 = 100 FPS`。
+Drawing functions first update the framebuffer in STM32 RAM and do not immediately access the bus. When `OLED_SendBuffer()` is called, the driver selects horizontal addressing mode, sets the column range to 0–127 and the page range to 0–7, and then sends the complete 1,024-byte framebuffer to the display.
 
-## 软件结构
+The control byte is `0x00` for commands and `0x40` for display data. OLED initialization also configures the scan direction, contrast, charge pump, and normal display mode.
+
+### 4. Animation Playback
+
+`cat_frames` in `my_lib/cat_frames.c` stores 30 bitmap frames. A 64×64 monochrome frame requires `64 × 64 / 8 = 512` bytes. The main loop performs the following sequence:
+
+```text
+Clear the RAM framebuffer
+    ↓
+Set the cursor to (32, 0) to center a 64-pixel-wide bitmap
+    ↓
+Draw one 64×64 frame into the framebuffer
+    ↓
+Send the complete 1,024-byte framebuffer to the OLED
+    ↓
+Wait 10 ms and continue with the next frame
+    ↓
+Restart after all 30 frames have been displayed
+```
+
+The actual frame rate also depends on the software I²C transfer time, so it is not exactly `1000 / 10 = 100 FPS`.
+
+## Project Structure
 
 ```text
 OLEDTest/
 ├─ user/
-│  ├─ main.c                  # 应用入口、动画数据和模块初始化
-│  ├─ system_stm32f10x.c     # 系统时钟配置
-│  └─ stm32f10x_it.c         # SysTick 中断处理
+│  ├─ main.c                  # Application entry point, initialization, and playback loop
+│  ├─ system_stm32f10x.c     # System clock configuration
+│  └─ stm32f10x_it.c         # SysTick interrupt handler
 ├─ my_lib/
-│  ├─ oled.c/.h               # SSD1306 初始化、显存、绘图和刷新
-│  ├─ si2c.c/.h               # 当前使用的软件 I²C 驱动
-│  ├─ i2c.c/.h                # 备用硬件 I²C 收发接口
-│  ├─ usart.c/.h              # 备用 USART 收发接口
-│  ├─ delay.c/.h              # SysTick 延时和系统毫秒计数
-│  ├─ oled_font.h             # 字体数据结构定义
-│  ├─ oled_default_font.h     # 默认字体数据
-│  └─ font/                   # 字体转换工具和附加字库
-├─ std_periph_driver/         # STM32F10x 标准外设库
-├─ startup/                   # Cortex-M3 启动文件和中断向量表
-├─ OLEDTest.uvprojx           # Keil MDK 工程文件
-└─ ARCHITECTURE.md            # 更详细的工程架构与数据流说明
+│  ├─ oled.c/.h               # SSD1306 initialization, drawing, framebuffer, and refresh
+│  ├─ si2c.c/.h               # Software I²C driver used by the application
+│  ├─ cat_frames.c            # Bitmap data for the 30 cat animation frames
+│  ├─ cat_frames.h            # Animation dimensions, frame count, and data declaration
+│  ├─ delay.c/.h              # SysTick delay and millisecond counter
+│  ├─ oled_font.h             # Font data type definitions
+│  ├─ oled_default_font.h     # Default font data
+│  └─ font/                   # Font conversion tools and additional fonts
+├─ std_periph_driver/         # STM32F10x Standard Peripheral Library
+├─ startup/                   # Cortex-M3 startup file and interrupt vector table
+├─ OLEDTest.uvprojx           # Keil MDK project file
+└─ ARCHITECTURE.md            # Detailed architecture and data-flow notes
 ```
 
-## 编译与下载
+## Building and Flashing
 
-1. 安装 Keil MDK，并安装支持 STM32F103C8 的 STM32F1 Device Family Pack。
-2. 使用 Keil 打开 `OLEDTest.uvprojx`。
-3. 确认目标器件为 `STM32F103C8`，编译工程。
-4. 使用 ST-Link 或其他兼容调试器连接开发板。
-5. 下载程序并复位，OLED 将循环播放猫咪动画。
+1. Install Keil MDK and the STM32F1 Device Family Pack that supports the STM32F103C8.
+2. Open `OLEDTest.uvprojx` in Keil.
+3. Confirm that the selected device is `STM32F103C8`, then build the project.
+4. Connect an ST-Link or another compatible debugger to the board.
+5. Flash the firmware and reset the MCU. The OLED should repeatedly play the cat animation.
 
-工程已开启 HEX 文件生成，构建产物位于 `Objects/`，编译清单位于 `Listings/`；这两个目录已被 `.gitignore` 忽略。
+HEX generation is enabled. Build outputs are written to `Objects/`, and compiler listings are written to `Listings/`. Both directories are ignored by `.gitignore`.
 
-## 修改与扩展
+## Customization
 
-### 修改 OLED 引脚
+### Changing the OLED Pins
 
-在 `user/main.c` 的 `My_SoftwareI2C_Init()` 中修改 GPIO 端口和引脚。若换到其他 GPIO 端口，`si2c.c` 当前只处理 GPIOA～GPIOD 的时钟使能，需要同步扩展相应判断。
+Edit the GPIO ports and pins in `My_SoftwareI2C_Init()` in `user/main.c`. If a different GPIO port is used, note that `si2c.c` currently enables clocks only for GPIOA through GPIOD, so its port-selection logic may also need to be extended.
 
-### 修改 OLED 地址
+### Changing the OLED Address
 
-修改 `my_lib/oled.h` 中的 `OLED_SLAVE_ADDR`。注意本工程使用的是左对齐、包含读写位的 8 位地址格式。
+Change `OLED_SLAVE_ADDR` in `my_lib/oled.h`. This project uses a left-aligned 8-bit address that includes the R/W bit.
 
-### 替换动画
+### Replacing the Animation
 
-将新图片转换为横向每 8 像素打包的单色位图数据，替换 `main.c` 中的 `cat` 数组，并同步修改帧数、位图宽高和光标位置。64×64 位图每帧固定占用 512 字节。
+Convert the new images into monochrome bitmap data packed horizontally in groups of eight pixels. Replace the `cat_frames` array in `my_lib/cat_frames.c`, then update the frame count and dimensions in `my_lib/cat_frames.h`. The application calculates horizontal centering from the configured width. Each 64×64 frame occupies 512 bytes.
 
-### 改用硬件 I²C
+### Switching to Hardware I²C
 
-配置 I²C 外设及对应 GPIO 后，将 OLED 的 `i2c_write_cb` 指向调用 `My_I2C_SendBytes()` 的适配函数即可。硬件 I²C 驱动目前只提供收发流程，工程没有现成的 I²C 外设初始化代码。
+To use hardware I²C, add or implement the required peripheral initialization and transfer functions, then register an adapter function through `i2c_write_cb`. The OLED drawing layer does not need to change.
 
-## 常见问题
+## Troubleshooting
 
-### OLED 完全不亮
+### The OLED Does Not Turn On
 
-- 检查 VCC、GND、SCL、SDA 是否接对并确保共地；
-- 检查 SCL、SDA 是否有上拉电阻；
-- 确认 OLED 控制器为 SSD1306，而不是初始化方式不同的 SH1106；
-- 确认模块的 7 位地址是 `0x3C`，若为 `0x3D` 则修改地址；
-- 确认外部晶振频率与 `system_stm32f10x.c` 的时钟配置一致。
+- Check VCC, GND, SCL, and SDA, and make sure the OLED and MCU share a common ground.
+- Confirm that SCL and SDA have pull-up resistors.
+- Confirm that the controller is an SSD1306 rather than an SH1106, which requires different initialization.
+- Confirm that the module's 7-bit address is `0x3C`; update the driver address if it is `0x3D`.
+- Confirm that the external crystal frequency matches the configuration in `system_stm32f10x.c`.
 
-### 图像方向不正确
+### The Image Orientation Is Incorrect
 
-OLED 初始化中使用 `0xA1` 进行段重映射、使用 `0xC8` 反向扫描 COM。不同模块的安装方向可能不同，可尝试对应的 `0xA0`、`0xC0` 组合。
+OLED initialization uses `0xA1` for segment remapping and `0xC8` for reversed COM scanning. Depending on the module orientation, try the corresponding `0xA0` and `0xC0` settings.
 
-### 动画闪烁或速度不合适
+### The Animation Flickers or Runs at the Wrong Speed
 
-当前每一帧都会经软件 I²C 刷新完整的 1 KB 显存。可调整 `Delay(10)` 改变帧间等待时间；若需要更高刷新率，可改用硬件 I²C、提高总线速度，或只刷新发生变化的区域。
+Every frame refreshes the complete 1 KB framebuffer over software I²C. Adjust `Delay(10)` to change the inter-frame delay. For a higher refresh rate, use hardware I²C, increase the bus speed, or refresh only the regions that changed.
 
-## 进一步阅读
+## Further Reading
 
-更完整的模块关系、外设资源图和单帧数据流可参阅 [ARCHITECTURE.md](ARCHITECTURE.md)。
+See [ARCHITECTURE.md](ARCHITECTURE.md) for more detailed module relationships, peripheral resource diagrams, and per-frame data flow.
